@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
+import android.widget.ToggleButton;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
@@ -24,8 +25,10 @@ import org.opencv.core.Mat;
 
 public class MainActivity extends AppCompatActivity {
     private ImageView imageView;
+    private Bitmap bitmap;
     private static final String TAG = "AirClass::MainActivity";
     private static final int w = 256, h = 144; // Width and height of the car images
+    private static ToggleButton connectButton;
     public native boolean CarConnect();
     public native byte[] GetImage(ImageSize intImage);
 
@@ -50,6 +53,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        connectButton = (ToggleButton) findViewById(R.id.connectButton);
+        bitmap = null;
     }
 
     @Override
@@ -68,51 +73,55 @@ public class MainActivity extends AppCompatActivity {
 
     public void onButtonConnect(View view) {
         TaskRunner runner = new TaskRunner();
-        runner.executeAsync(new CustomCallable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                return CarConnect();
-            }
-            @RequiresApi(api = Build.VERSION_CODES.O)
-            @Override
-            public void postExecute(Boolean result) {
-                Toast.makeText(getApplicationContext(),
-                        "connection result " + result, Toast.LENGTH_LONG).show();
-                final Handler handler = new Handler();
-                final int delay = 33;
+        if(connectButton.isChecked()){
+            runner.executeAsync(new CustomCallable<Boolean>() {
+                @Override
+                public Boolean call() throws Exception {
 
-                handler.postDelayed(new Runnable() {
-                    public void run() {
-                        ImageSize intImage = new ImageSize();
-                        byte[] testImage = new byte[]{};
-                        byte[] imageVals = GetImage(intImage);
-                        int length = imageVals.length;
-                        Bitmap bitmap = null;
-                        // Generating the object to control the Bitmap options
-                        BitmapFactory.Options options = new BitmapFactory.Options();
-                        options.inJustDecodeBounds = false;
-                        options.outHeight = h;
-                        options.outWidth = w;
-                        options.inBitmap = bitmap;
-                        // Converting the received byte[] into Bitmap (to display the image)
-                        bitmap = BitmapFactory.decodeByteArray(imageVals, 0, length, options);
-                        // .. Display the image? //
-                        ImageView imageView = (ImageView) findViewById(R.id.cameraImage);
-                        imageView.setImageBitmap(bitmap);
+                    return CarConnect();
+                }
+                @RequiresApi(api = Build.VERSION_CODES.O)
+                @Override
+                public void postExecute(Boolean result) {
+                    Toast.makeText(getApplicationContext(),
+                            "connection result " + result, Toast.LENGTH_LONG).show();
+                    final Handler handler = new Handler();
+                    // Defines the interval of time passing between each frame request
+                    final int delay = 33; // ms
+                    // Generating the object to control the Bitmap options
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inJustDecodeBounds = false;
+                    options.outHeight = h;
+                    options.outWidth = w;
+                    options.inBitmap = bitmap;
+                    // Needed to show the stream of images
+                    ImageView imageView = (ImageView) findViewById(R.id.cameraImage);
+                    handler.postDelayed(new Runnable() {
+                        public void run() {
+                            ImageSize intImage = new ImageSize();
+                            byte[] imageVals = GetImage(intImage);
+                            int length = imageVals.length;
+                            // Converting the received byte[] into Bitmap (to display the image)
+                            bitmap = BitmapFactory.decodeByteArray(imageVals, 0, length, options);
+                            // Display the image
+                            imageView.setImageBitmap(bitmap);
+                            // Converting the Bitmap into Mat (to use opencv image classification)
+                            Mat mat = new Mat();
+                            Utils.bitmapToMat(bitmap, mat);
+                            // .. Image classification and car controls? //
+                            handler.postDelayed(this, delay);
+                        }
+                    }, delay);
+                }
 
-                        // Converting the Bitmap into Mat (to use opencv image classification)
-                        Mat mat = new Mat();
-                        Utils.bitmapToMat(bitmap, mat);
-                        // .. Image classification and car controls? //
-                        handler.postDelayed(this, delay);
-                    }
-                }, delay);
-            }
-
-            @Override
-            public void preExecute() {
-                imageView = findViewById(R.id.cameraImage);
-            }
-        });
+                @Override
+                public void preExecute() {
+                    imageView = findViewById(R.id.cameraImage);
+                }
+            });
+        }
+        else {
+            // Specificare cosa fa nel caso in cui il toggleButton passasse da ON a OFF
+        }
     }
 }

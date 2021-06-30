@@ -22,19 +22,11 @@ JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConn
     return isEnabled;
 }
 
-
 JNIEXPORT jbyteArray JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jobject obj)
 {
     // Check if a client has been instantiated
     if (!m_client)
         return;
-
-    // Get the class of the input object
-    jclass intImage_class = env -> GetObjectClass(obj);
-
-    // Get Field references
-    jfieldID width_field = env -> GetFieldID(intImage_class, "width", "I");
-    jfieldID height_field = env -> GetFieldID(intImage_class, "height", "I");
 
     std::vector<ImageRequest> request = {
             //png format
@@ -48,8 +40,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetIm
     const std::vector<ImageResponse>& response = m_client -> simGetImages(request);
     if(response.size() > 0) {
         const ImageResponse& image_info = response[0];
-        int width = image_info.width;
-        int height = image_info.height;
 
         std::vector<uint8_t> image_uint8 = image_info.image_data_uint8;
         // Create a jbyteArray
@@ -58,10 +48,6 @@ JNIEXPORT jbyteArray JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetIm
         uint8_t* image_uint8_array = &image_uint8[0];
         // Fill jbyteArray
         env -> SetByteArrayRegion(image_byte_array, 0, image_uint8.size(), reinterpret_cast<jbyte *>(image_uint8_array));
-
-        // Set fields for object
-        env -> SetIntField(obj, width_field, width);
-        env -> SetIntField(obj, height_field, height);
 
         return image_byte_array;
     }
