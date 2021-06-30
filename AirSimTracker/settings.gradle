@@ -1,0 +1,6 @@
+include ':app'
+rootProject.name = "AirSimTracker"
+
+def opencvsdk='E:\\Android OpenCV\\opencv-4.5.2-android-sdk\\OpenCV-android-sdk'
+include ':opencv'
+project(':opencv').projectDir = new File(opencvsdk + '\\sdk')
