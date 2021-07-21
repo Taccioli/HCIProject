@@ -8,6 +8,8 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.util.Size;
 import android.util.TypedValue;
+import android.view.Surface;
+import android.view.WindowManager;
 import android.widget.Toast;
 import com.pervasive.airsimtracker.Detection.env.BorderedText;
 import com.pervasive.airsimtracker.Detection.env.ImageUtils;
@@ -38,6 +40,7 @@ public class DetectorActivity {
     private Integer sensorOrientation;
     private Detector detector;
     // private Bitmap rgbFrameBitmap = null;
+    private Bitmap rgbFrameBitmap = null;
     private Bitmap croppedBitmap = null;
     private Bitmap cropCopyBitmap = null;
     private boolean computingDetection = false;
@@ -46,18 +49,19 @@ public class DetectorActivity {
     private Matrix cropToFrameTransform;
     private MultiBoxTracker tracker;
     private BorderedText borderedText;
-    private Size size = new Size(416,416);
+    private Size size = new Size(640,360);
     private int rotation = 0;
     private Point pointInScreen;
     protected int previewWidth = 0;
     protected int previewHeight = 0;
 
-    public Point processImage(Context context, Bitmap croppedBitmap) {
+    public Point processImage(Context context, Bitmap bitmap) {
+        rgbFrameBitmap = bitmap;
         onPreviewSizeChosen(context, size, rotation);
         //rgbFrameBitmap.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight);
 
         final Canvas canvas = new Canvas(croppedBitmap);
-        // canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
+        canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
         // For examining the actual TF input.
         if (SAVE_PREVIEW_BITMAP) {
             ImageUtils.saveBitmap(croppedBitmap);
@@ -69,7 +73,8 @@ public class DetectorActivity {
                 final List<Detector.Recognition> results = detector.recognizeImage(croppedBitmap);
 
                 cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
-                //final Canvas canvas = new Canvas(cropCopyBitmap);
+                final Canvas canvas = new Canvas(cropCopyBitmap);
+                final Canvas truecanvas = new Canvas(bitmap);
                 final Paint paint = new Paint();
                 paint.setColor(Color.RED);
                 paint.setStyle(Paint.Style.STROKE);
@@ -91,13 +96,12 @@ public class DetectorActivity {
                     if (location != null && result.getConfidence() >= minimumConfidence && result.getTitle().equals("car")) {
                         canvas.drawRect(location, paint);
                         pointInScreen = new Point((int) result.getLocation().centerX(), (int) result.getLocation().centerY());
-                        //cropToFrameTransform.mapRect(location); // Dà problemi perché cropToFrame è null (potrebbe servire per display immagine grossa)
-
+                        cropToFrameTransform.mapRect(location); // Dà problemi perché cropToFrame è null (potrebbe servire per display immagine grossa)
+                        truecanvas.drawRect(location, paint);
                         result.setLocation(location);
                         mappedRecognitions.add(result);
                     }
                 }
-
                 // tracker.trackResults(mappedRecognitions, currTimestamp);
                 computingDetection = false;
             }
@@ -133,11 +137,42 @@ public class DetectorActivity {
             toast.show();
             ((Activity)context).finish();
         }
+
+        previewWidth = size.getWidth();
+        previewHeight = size.getHeight();
+        sensorOrientation = rotation - getScreenOrientation();
+        // rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
+        croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888);
+
+        frameToCropTransform =
+                ImageUtils.getTransformationMatrix(
+                        previewWidth, previewHeight,
+                        cropSize, cropSize,
+                        sensorOrientation, MAINTAIN_ASPECT);
+
+        cropToFrameTransform = new Matrix();
+        frameToCropTransform.invert(cropToFrameTransform);
+        tracker.setFrameConfiguration(previewWidth, previewHeight, sensorOrientation);
     }
 
     // Which detection model to use: by default uses Tensorflow Object Detection API frozen
     // checkpoints.
     private enum DetectorMode {
         TF_OD_API;
+    }
+
+    protected int getScreenOrientation() {
+        // Da correggere quando si implementa la rotazione
+        /*switch (getWindowManager().getDefaultDisplay().getRotation()) {
+            case Surface.ROTATION_270:
+                return 270;
+            case Surface.ROTATION_180:
+                return 180;
+            case Surface.ROTATION_90:
+                return 90;
+            default:
+                return 0;
+        }*/
+        return 0;
     }
 }
