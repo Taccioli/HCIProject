@@ -1,0 +1,60 @@
+{
+  "SeeDocsAt": "https://github.com/Microsoft/AirSim/blob/master/docs/settings.md",
+  "SettingsVersion": 1.2,
+  "SimMode": "Car",
+  "CameraDefaults": {
+    "CaptureSettings": [
+      {
+      "ImageType": 0,
+      "Width": 640,
+      "Height": 360,
+      "FOV_Degrees": 60
+      },{
+      "ImageType": 5,
+      "Width": 300,
+      "Height": 300,
+      "FOV_Degrees": 70
+      }
+    ]
+  },
+  "DefaultSensors": {
+    "Distance": {
+      "SensorType": 5,
+      "Enabled" : true,
+      "MinDistance": 0.2,
+      "MaxDistance": 20,
+      "X": 0, "Y": 0, "Z": -1,
+      "Yaw": 0, "Pitch": 0, "Roll": 0,
+      "DrawDebugPoints": false
+    },
+    "Lidar2": {
+      "SensorType": 6,
+      "Enabled" : true,
+      "NumberOfChannels": 16,
+      "RotationsPerSecond": 10,
+      "PointsPerSecond": 100000,
+      "X": 0, "Y": 0, "Z": -1,
+      "Roll": 0, "Pitch": 0, "Yaw" : 0,
+      "VerticalFOVUpper": -15,
+      "VerticalFOVLower": -25,
+      "HorizontalFOVStart": -20,
+      "HorizontalFOVEnd": 20,
+      "DrawDebugPoints": true,
+      "DataFrame": "SensorLocalFrame"
+    }
+  },
+  "Vehicles": {
+    "Car1": {
+      "VehicleType": "PhysXCar",
+      "X": -4,
+      "Y": 0,
+      "Z": -2
+    },
+    "Car2": {
+      "VehicleType": "PhysXCar",
+      "X": -4,
+      "Y": 8,
+      "Z": -2
+    }
+  }
+}
