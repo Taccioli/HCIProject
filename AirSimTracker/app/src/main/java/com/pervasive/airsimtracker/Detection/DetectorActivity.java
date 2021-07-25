@@ -30,10 +30,10 @@ public class DetectorActivity {
     private static final String TF_OD_API_LABELS_FILE = "labelmap.txt";
     private static final DetectorMode MODE = DetectorMode.TF_OD_API;
     // Minimum detection confidence to track a detection.
-    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.4f;
+    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.3f;
     private static final boolean MAINTAIN_ASPECT = false;
-    private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
-    private static final boolean SAVE_PREVIEW_BITMAP = false;
+    //private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
+    //private static final boolean SAVE_PREVIEW_BITMAP = false;
     private static final float TEXT_SIZE_DIP = 10;
     private static final String TAG = "DetectorActivity";
 
@@ -62,10 +62,7 @@ public class DetectorActivity {
 
         final Canvas canvas = new Canvas(croppedBitmap);
         canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
-        // For examining the actual TF input.
-        if (SAVE_PREVIEW_BITMAP) {
-            ImageUtils.saveBitmap(croppedBitmap);
-        }
+
         final Handler handler = new Handler();
         handler.post(new Runnable() {
             public void run() {
@@ -73,7 +70,7 @@ public class DetectorActivity {
                 final List<Detector.Recognition> results = detector.recognizeImage(croppedBitmap);
 
                 cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
-                final Canvas canvas = new Canvas(cropCopyBitmap);
+                // final Canvas canvas = new Canvas(cropCopyBitmap);
                 final Canvas truecanvas = new Canvas(bitmap);
                 final Paint paint = new Paint();
                 paint.setColor(Color.RED);
@@ -94,9 +91,9 @@ public class DetectorActivity {
                     final RectF location = result.getLocation();
                     // Only draws the rectangle over the car, if it is confident
                     if (location != null && result.getConfidence() >= minimumConfidence && result.getTitle().equals("car")) {
-                        canvas.drawRect(location, paint);
-                        pointInScreen = new Point((int) result.getLocation().centerX(), (int) result.getLocation().centerY());
-                        cropToFrameTransform.mapRect(location); // Dà problemi perché cropToFrame è null (potrebbe servire per display immagine grossa)
+                        //canvas.drawRect(location, paint);
+                        cropToFrameTransform.mapRect(location);
+                        pointInScreen = new Point((int) location.centerX(), (int) location.centerY());
                         truecanvas.drawRect(location, paint);
                         result.setLocation(location);
                         mappedRecognitions.add(result);
@@ -104,8 +101,11 @@ public class DetectorActivity {
                 }
                 // tracker.trackResults(mappedRecognitions, currTimestamp);
                 computingDetection = false;
+                final long stopTime = SystemClock.uptimeMillis();
+                Log.i(TAG, String.format("Detection time: %d", stopTime-startTime));
             }
         });
+
         return pointInScreen;
     }
 

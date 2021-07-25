@@ -2,18 +2,20 @@
   "SeeDocsAt": "https://github.com/Microsoft/AirSim/blob/master/docs/settings.md",
   "SettingsVersion": 1.2,
   "SimMode": "Car",
+  "ViewMode": "NoDisplay",
   "CameraDefaults": {
     "CaptureSettings": [
       {
-      "ImageType": 0,
-      "Width": 640,
-      "Height": 360,
-      "FOV_Degrees": 60
+        "ImageType": 0,
+        "Width": 480,
+        "Height": 360,
+        "FOV_Degrees": 60
       },{
-      "ImageType": 5,
-      "Width": 300,
-      "Height": 300,
-      "FOV_Degrees": 70
+        "ImageType": 2,
+        "Width": 480,
+        "Height": 360,
+        "FOV_Degrees": 60,
+        "ImageAsFloat": true
       }
     ]
   },
@@ -21,19 +23,19 @@
     "Distance": {
       "SensorType": 5,
       "Enabled" : true,
-      "MinDistance": 0.2,
-      "MaxDistance": 20,
+      "MinDistance": 0.5,
+      "MaxDistance": 50,
       "X": 0, "Y": 0, "Z": -1,
       "Yaw": 0, "Pitch": 0, "Roll": 0,
       "DrawDebugPoints": false
     },
-    "Lidar2": {
+    "Lidar": {
       "SensorType": 6,
       "Enabled" : true,
       "NumberOfChannels": 16,
       "RotationsPerSecond": 10,
       "PointsPerSecond": 100000,
-      "X": 0, "Y": 0, "Z": -1,
+      "X": 0, "Y": 0, "Z": 0,
       "Roll": 0, "Pitch": 0, "Yaw" : 0,
       "VerticalFOVUpper": -15,
       "VerticalFOVLower": -25,

@@ -5,6 +5,7 @@ import android.content.res.AssetManager;
 import android.graphics.*;
 import android.os.Build;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -36,40 +37,36 @@ import org.opencv.imgproc.Imgproc;
 import org.tensorflow.lite.schema.Tensor;
 
 public class MainActivity extends AppCompatActivity {
-    private ImageView imageView;
+    private View imageView;
     private Bitmap bitmap;
     private static final String TAG = "AirClass::MainActivity";
     private static final String IMAGENET_CLASSES = "imagenet_classes.txt";
     //private static final String MODEL_FILE = "tinyyolov2-7.onnx";
-    private static final int w = 640, h = 480;  // Width and height of the car images
+    private static final int w = 480, h = 360;  // Width and height of the images received, used to compute the distance between the cars
     private static ToggleButton connectButton;
-    private Net opencvNet;
-    private CNNExtractorService cnnService;
+    //private Net opencvNet;
+    //private CNNExtractorService cnnService;
     private DetectorActivity detector;
 
+    // Data
+    public float accelerationValue = 0.3f;
+    public float decelerationValue = 0.2f;
+
+
+    // Function to retrieve data and send commands to the Airsim car
     public native boolean CarConnect();
     public native byte[] GetImage();
-    public native byte[] GetDepth();
-    public String classesPath;
-    public String onnxModelPath;
+    public native ReceivedImage GetImages();
+    public native float[] GetDepth();
+    public native void CarSteering(float steeringAngle);
+    public native void CarAccelerate(float throttle, float steeringAngle);
+    public native void CarDecelerate(float throttle, float steeringAngle);
+    public native void CarBrake();
+    public native float GetCarSpeed();
+
     static {
         System.loadLibrary("carclient");
     }
-
-    /*
-    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
-        @Override
-        public void onManagerConnected(int status) {
-            switch (status) {
-                case LoaderCallbackInterface.SUCCESS:
-                    Log.i(TAG, "OpenCV loaded successfully.");
-                    break;
-                default:
-                    super.onManagerConnected(status);
-            }
-        }
-    };
-     */
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,27 +77,7 @@ public class MainActivity extends AppCompatActivity {
 
         connectButton = (ToggleButton) findViewById(R.id.connectButton);
         bitmap = null;
-
-        //this.cnnService = new CNNExtractorServiceImpl();
-        //this.classesPath = getPath(IMAGENET_CLASSES, this);
-        //this.onnxModelPath = getPath(MODEL_FILE, this);
         this.detector = new DetectorActivity();
-    }
-
-    @Override
-    public void onResume(){
-        super.onResume();
-        /*
-        // In realtà questa parte ora non ci serve più - perché un tempo le openCV dovevano essere installate con
-        // Un pacchetto dal play store, ma ora non è più così
-        if (!OpenCVLoader.initDebug()) {
-            Log.d(TAG, "internal OPenCV library not found. Using OpenCV Manager for initialization.");
-            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
-        } else {
-            Log.d(TAG, "OpenCV library found inside package. Using it!");
-            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
-        }
-        */
     }
 
     public void onButtonConnect(View view) {
@@ -117,48 +94,58 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(getApplicationContext(),
                             "connection result " + result, Toast.LENGTH_LONG).show();
 
-                    /* Old implementation
-                    // After connecting, the opencv cnn is loaded
-                    if(onnxModelPath.trim().isEmpty()){
-                        Log.i(TAG, "Failed to get model file");
-                        return;
-                    }
-                    opencvNet = cnnService.getConvertedNet(onnxModelPath, TAG);
-                    */
-
                     final Handler handler = new Handler();
                     // Defines the interval of time passing between each frame request
-                    final int delay = 33; // ms
+                    final int delay = 1; // ms
                     // Generating the object to control the Bitmap options
                     BitmapFactory.Options options = new BitmapFactory.Options();
                     options.inJustDecodeBounds = false;
-                    options.outHeight = h;
-                    options.outWidth = w;
                     options.inBitmap = bitmap;
                     options.inMutable = true;
                     // Needed to show the stream of images
                     ImageView imageView = (ImageView) findViewById(R.id.cameraImage);
                     handler.postDelayed(new Runnable() {
                         public void run() {
-                            byte[] imageVals = GetImage();
-                            byte[] imageDepth = GetDepth();
-                            int length = imageVals.length;
+                            final long startTime = SystemClock.uptimeMillis(); // For debug purposes
+
+                            // Both depth and video images are received at the same time
+                            ReceivedImage image = GetImages();
+                            byte[] imageVals = image.videoImage;
+                            float[] imageDepth = image.depthImage;
+
                             // Converting the received byte[] into Bitmap (to display and process the image)
+                            int length = imageVals.length;
                             bitmap = BitmapFactory.decodeByteArray(imageVals, 0, length, options);
-                            // .. Image classification and car controls? //
+
+                            // .. Image classification and car controls //
                             // This gives us the point in which we found the car
                             Point pos = detector.processImage(MainActivity.this, bitmap);
-                            if(pos != null)
-                                // Go towards the point in which there should be the car
+                            if(pos != null) {
+                                Log.i(TAG, String.format("Point in screen of the car: %d, %d", pos.x, pos.y));
+                                float distance = getDist(imageDepth, pos);
+                                Log.i(TAG, String.format("Distance from the car in meters: %f", distance));
+                                // Go towards the point in which the car should be
+                                float steeringAngle = (pos.x/(w/2)) - 1;
 
-                            /* Old way to do it (Not working)
-                            // Converting the Bitmap into Mat (to use opencv image classification)
-                            // Mat mat = new Mat();
-                            // Utils.bitmapToMat(bitmap, mat);
-                            // String predictedClass = cnnService.getPredictedLabel(mat, opencvNet, classesPath); */
+                                // Choose the right amount of throttle
+                                if(distance < 4 || distance > 100)
+                                    CarBrake();
+                                else {
+                                    float carSpeed = GetCarSpeed();
+                                    if((distance/carSpeed) < 1)
+                                        CarDecelerate(decelerationValue, steeringAngle);
+                                    else
+                                        CarAccelerate(accelerationValue, steeringAngle);
+                                }
+                                pos = null;
+                            }
+                            else // Can't find the car
+                                CarBrake();
 
                             // Display the image
                             imageView.setImageBitmap(bitmap);
+                            final  long stopTime = SystemClock.uptimeMillis();
+                            Log.i(TAG, String.format("Total time: %d", stopTime-startTime));
                             handler.postDelayed(this, delay);
                         }
                     }, delay);
@@ -175,23 +162,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static String getPath(String file, Context context){
-        AssetManager assetManager = context.getAssets();
-        BufferedInputStream inputStream;
-        try {
-            inputStream = new BufferedInputStream(assetManager.open(file));
-            byte[] data = new byte[inputStream.available()];
-            inputStream.read(data);
-            inputStream.close();
-            // Create copy in storage
-            File outFile = new File(context.getFilesDir(), file);
-            FileOutputStream os = new FileOutputStream(outFile);
-            os.write(data);
-            os.close();
-            return outFile.getAbsolutePath();
-        } catch (IOException ex){
-            Log.i(TAG, "Failed to upload a file");
-        }
-        return "";
+    private float getDist(float[] imageDepth, Point pos) {
+        return imageDepth[w*h-1-(pos.y+w*pos.x)];
     }
 }

@@ -126,7 +126,7 @@ public class TFLiteObjectDetectionAPIModel implements Detector {
                 metadata.getAssociatedFile(labelFilename), Charset.defaultCharset()))) {
       String line;
       while ((line = br.readLine()) != null) {
-        Log.w(TAG, line);
+        // Log.w(TAG, line);
         d.labels.add(line);
       }
     }
