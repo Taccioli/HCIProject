@@ -36,6 +36,8 @@ import org.opencv.dnn.Net;
 import org.opencv.imgproc.Imgproc;
 import org.tensorflow.lite.schema.Tensor;
 
+import static org.opencv.core.CvType.CV_8UC3;
+
 public class MainActivity extends AppCompatActivity {
     private View imageView;
     private Bitmap bitmap;
@@ -44,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
     //private static final String MODEL_FILE = "tinyyolov2-7.onnx";
     private static final int w = 480, h = 360;  // Width and height of the images received, used to compute the distance between the cars
     private static ToggleButton connectButton;
+    public Mat mat;
     //private Net opencvNet;
     //private CNNExtractorService cnnService;
     private DetectorActivity detector;
@@ -55,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
 
     // Function to retrieve data and send commands to the Airsim car
     public native boolean CarConnect();
-    public native byte[] GetImage();
+    public native void GetImage(long matAddrGay);
     public native ReceivedImage GetImages();
     public native float[] GetDepth();
     public native void CarSteering(float steeringAngle);
@@ -77,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
 
         connectButton = (ToggleButton) findViewById(R.id.connectButton);
         bitmap = null;
+        mat = new Mat(h,w,CV_8UC3);
         this.detector = new DetectorActivity();
     }
 
@@ -110,8 +114,13 @@ public class MainActivity extends AppCompatActivity {
 
                             // Both depth and video images are received at the same time
                             ReceivedImage image = GetImages();
+
+
                             byte[] imageVals = image.videoImage;
                             float[] imageDepth = image.depthImage;
+
+                            // Test //
+                            GetImage(mat.getNativeObjAddr());
 
                             // Converting the received byte[] into Bitmap (to display and process the image)
                             int length = imageVals.length;
@@ -125,10 +134,10 @@ public class MainActivity extends AppCompatActivity {
                                 float distance = getDist(imageDepth, pos);
                                 Log.i(TAG, String.format("Distance from the car in meters: %f", distance));
                                 // Go towards the point in which the car should be
-                                float steeringAngle = (pos.x/(w/2)) - 1;
+                                float steeringAngle = (pos.x/(float)(w/2)) - 1;
 
                                 // Choose the right amount of throttle
-                                if(distance < 4 || distance > 100)
+                                if(distance < 4)
                                     CarBrake();
                                 else {
                                     float carSpeed = GetCarSpeed();
@@ -163,6 +172,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private float getDist(float[] imageDepth, Point pos) {
-        return imageDepth[w*h-1-(pos.y+w*pos.x)];
+        return imageDepth[w*h-1-(pos.x+w*pos.y)];
     }
 }

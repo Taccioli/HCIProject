@@ -16,7 +16,8 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
-                arguments "-DANDROID_TOOLCHAIN=clang",
+                arguments "-DOpenCV_DIR=" + project(':opencv').projectDir+"/native/jni",
+                        "-DANDROID_TOOLCHAIN=clang",
                         "-DANDROID_STL=c++_shared"
                 targets "carclient"
             }

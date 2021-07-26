@@ -1,7 +1,16 @@
-cmake_minimum_required(VERSION 3.5.1)
+cmake_minimum_required(VERSION 3.6)
 
 set(target carclient)
 project(${target} CXX)
+
+set(ANDROID_OPENCV_COMPONENTS "opencv_java" CACHE STRING "")
+message(STATUS "ANDROID_ABI=${ANDROID_ABI}")
+find_package(OpenCV REQUIRED COMPONENTS ${ANDROID_OPENCV_COMPONENTS})
+
+file(GLOB srcs *.cpp *.c)
+file(GLOB hdrs *.hpp *.h)
+
+include_directories("${CMAKE_CURRENT_LIST_DIR}")
 
 set(RPCLIB_DEFAULT_PORT 8080
   CACHE STRING "Default port used for running tests and examples")
@@ -35,22 +44,25 @@ set(AIRSIM_SOURCES
   lib/vehicles/car/api/CarRpcLibClient.cpp)
 
 add_library(${PROJECT_NAME} SHARED
-  lib/rpc/dispatcher.cc
-  lib/rpc/server.cc
-  lib/rpc/client.cc
-  lib/rpc/this_handler.cc
-  lib/rpc/this_session.cc
-  lib/rpc/this_server.cc
-  lib/rpc/rpc_error.cc
-  lib/rpc/detail/server_session.cc
-  lib/rpc/detail/response.cc
-  lib/rpc/detail/client_error.cc
-  lib/rpc/nonstd/optional.cc
-  ${DEP_SOURCES}
-  ${DEP_HEADERS}
-  ${RPCLIB_HEADERS}
-  ${AIRSIM_SOURCES}
-  carclient.cpp)
+      lib/rpc/dispatcher.cc
+      lib/rpc/server.cc
+      lib/rpc/client.cc
+      lib/rpc/this_handler.cc
+      lib/rpc/this_session.cc
+      lib/rpc/this_server.cc
+      lib/rpc/rpc_error.cc
+      lib/rpc/detail/server_session.cc
+      lib/rpc/detail/response.cc
+      lib/rpc/detail/client_error.cc
+      lib/rpc/nonstd/optional.cc
+      ${DEP_SOURCES}
+      ${DEP_HEADERS}
+      ${RPCLIB_HEADERS}
+      ${AIRSIM_SOURCES}
+      ${srcs}
+      ${hdrs}
+      carclient.cpp)
+
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
   # clang is the compiler used for developing mainly, so
@@ -77,7 +89,7 @@ target_compile_definitions(${PROJECT_NAME}
     "RPCLIB_MSGPACK=clmdep_msgpack"
   )
 
-target_link_libraries(${PROJECT_NAME} ${RPCLIB_DEP_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${RPCLIB_DEP_LIBRARIES} ${ANDROID_OPENCV_COMPONENTS})
 target_include_directories(
   ${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -87,3 +99,4 @@ target_include_directories(
   ${PROJECT_NAME} SYSTEM
   PRIVATE ${RPCLIB_DEPENDENCIES}/include
   )
+

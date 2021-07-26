@@ -1,12 +1,20 @@
 #include <jni.h>
 #include "carclient.h"
 #include <vehicles/car/api/CarRpcLibClient.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/features2d.hpp>
+#include <vector>
 using namespace msr::airlib;
 using std::cin;
 using std::cout;
 using std::endl;
 using std::vector;
-using namespace msr::airlib;
+using namespace std;
+using namespace cv;
 typedef ImageCaptureBase::ImageRequest ImageRequest;
 typedef ImageCaptureBase::ImageResponse ImageResponse;
 typedef ImageCaptureBase::ImageType ImageType;
@@ -22,36 +30,25 @@ JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConn
     return isEnabled;
 }
 
-JNIEXPORT jbyteArray JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jobject obj)
+JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jobject obj, jlong addrImg)
 {
     // Check if a client has been instantiated
     if (!m_client)
         return;
 
+    Mat& img = *(Mat*)addrImg;
+    assert(img.empty());
     std::vector<ImageRequest> request = {
             //png format
-            ImageRequest("0", ImageType::Scene),
-            //uncompressed RGB array bytes
-            //ImageRequest("1", ImageType::Scene, false, false)//,
-            //floating point uncompressed image
-            //ImageRequest("1", ImageType::DepthPlanar, true)
+            ImageRequest("0", ImageType::Scene, false, false),
         };
 
     const std::vector<ImageResponse>& response = m_client -> simGetImages(request);
+    assert(response.size() > 0);
     if(response.size() > 0) {
-        const ImageResponse& image_info = response[0];
-
-        std::vector<uint8_t> image_uint8 = image_info.image_data_uint8;
-        // Create a jbyteArray
-        jbyteArray image_byte_array = env->NewByteArray(image_uint8.size());
-        // Cast from uint8_t vector to uint8_t array
-        uint8_t* image_uint8_array = &image_uint8[0];
-        // Fill jbyteArray
-        env -> SetByteArrayRegion(image_byte_array, 0, image_uint8.size(), reinterpret_cast<jbyte *>(image_uint8_array));
-
-        return image_byte_array;
+        // Mat Left = Mat(response.at(0).height, response.at(0).width, ImreadModes::IMREAD_COLOR);
+        imdecode(response.at(0).image_data_uint8,  ImreadModes::IMREAD_COLOR, &img);
     }
-    return;
 }
 
 JNIEXPORT jobject JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImages(JNIEnv *env, jobject javaThis, jobject obj)
@@ -178,4 +175,3 @@ JNIEXPORT jfloat JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetCarSpe
         return;
     return m_client->getCarState().speed;
 }
-
