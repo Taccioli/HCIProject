@@ -39,7 +39,7 @@ import org.opencv.dnn.Net;
 import org.opencv.imgproc.Imgproc;
 import org.tensorflow.lite.schema.Tensor;
 
-import static org.opencv.core.CvType.CV_8UC3;
+import static org.opencv.core.CvType.*;
 
 public class MainActivity extends AppCompatActivity {
     private View imageView;
@@ -49,7 +49,8 @@ public class MainActivity extends AppCompatActivity {
     //private static final String MODEL_FILE = "tinyyolov2-7.onnx";
     private static final int w = 480, h = 360;  // Width and height of the images received, used to compute the distance between the cars
     private static ToggleButton connectButton;
-    public Mat mat;
+    public Mat imageMat;
+    public Mat depthMat;
     //private Net opencvNet;
     //private CNNExtractorService cnnService;
     private DetectorActivity detector;
@@ -62,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
     // Function to retrieve data and send commands to the Airsim car
     public native boolean CarConnect();
 
-    public native void GetImage(long matAddrGay);
+    public native void GetImage(long imgAddr, long depthAddr);
 
     public native ReceivedImage GetImages();
 
@@ -82,6 +83,19 @@ public class MainActivity extends AppCompatActivity {
         System.loadLibrary("carclient");
     }
 
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS:
+                    Log.i(TAG, "OpenCV loaded succesfully");
+                    break;
+                default:
+                    super.onManagerConnected(status);
+            }
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "called onCreate");
@@ -91,9 +105,23 @@ public class MainActivity extends AppCompatActivity {
 
         //connectButton = (ToggleButton) findViewById(R.id.connectButton);
         bitmap = null;
-        mat = new Mat(h,w,CV_8UC3);
+        imageMat = new Mat();
+        depthMat = new Mat(h,w,CV_32FC1);
         this.detector = new DetectorActivity();
         onConnect();
+    }
+
+    @Override
+    public void onResume(){
+        super.onResume();
+        if (!OpenCVLoader.initDebug()){
+            Log.d(TAG, "Internal OpenCV library not found. Using penCV manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
+        }
+        else {
+            Log.d(TAG, "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
     }
 
     private void onConnect() {
@@ -119,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
                 options.inJustDecodeBounds = false;
                 options.inBitmap = bitmap;
                 options.inMutable = true;
+                bitmap = Bitmap.createBitmap(w,h, Bitmap.Config.ARGB_8888);
                 // Needed to show the stream of images
                 ImageView imageView = (ImageView) findViewById(R.id.cameraImage);
                 handler.postDelayed(new Runnable() {
@@ -126,23 +155,26 @@ public class MainActivity extends AppCompatActivity {
                         final long startTime = SystemClock.uptimeMillis(); // For debug purposes
 
                         // Both depth and video images are received at the same time
-                        ReceivedImage image = GetImages();
-                        byte[] imageVals = image.videoImage;
-                        float[] imageDepth = image.depthImage;
-
-                        /// Test - crashes ///
-                        // GetImage(mat.getNativeObjAddr());
-
+                        //ReceivedImage image = GetImages();
+                        //byte[] imageVals = image.videoImage;
+                        //float[] imageDepth = image.depthImage;
+                        //float[] depth = GetDepth();
+                        /// Test ///
+                        GetImage(imageMat.getNativeObjAddr(), depthMat.getNativeObjAddr());
+                        final long stop = SystemClock.uptimeMillis();
+                        Log.i(TAG, String.format("Acquisition time: %d", stop - startTime));
+                        Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_BGR2RGBA);
+                        Utils.matToBitmap(imageMat, bitmap);
                         // Converting the received byte[] into Bitmap (to display and process the image)
-                        int length = imageVals.length;
-                        bitmap = BitmapFactory.decodeByteArray(imageVals, 0, length, options);
+                        //int length = imageVals.length;
+                        //bitmap = BitmapFactory.decodeByteArray(imageVals, 0, length, options);
 
                         // .. Image classification and car controls //
                         // This gives us the point in which we found the car
                         Point pos = detector.processImage(MainActivity.this, bitmap);
                         if (pos != null) {
                             Log.i(TAG, String.format("Point in screen of the car: %d, %d", pos.x, pos.y));
-                            float distance = getDist(imageDepth, pos);
+                            double distance = getDist(depthMat, pos);
                             Log.i(TAG, String.format("Distance from the car in meters: %f", distance));
                             // Go towards the point in which the car should be
                             float steeringAngle = (pos.x / (float)(w / 2)) - 1;
@@ -175,13 +207,10 @@ public class MainActivity extends AppCompatActivity {
                 imageView = findViewById(R.id.cameraImage);
             }
         });
-        //}
-        /*else {
-            // Specificare cosa fa nel caso in cui il toggleButton passasse da ON a OFF
-        }*/
     }
 
-    private float getDist(float[] imageDepth, Point pos) {
-        return imageDepth[w*h-1-(pos.x+w*pos.y)];
+    private double getDist(Mat imageDepth, Point pos) {
+        //return imageDepth[w*h-1-(pos.x+w*pos.y)];
+        return imageDepth.get((int)pos.x,(int)pos.y)[0];
     }
 }

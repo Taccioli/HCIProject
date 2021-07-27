@@ -31,24 +31,26 @@ JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConn
     return isEnabled;
 }
 
-JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jobject obj, jlong addrImg)
+JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jlong addrImg, jlong addrDepth)
 {
     // Check if a client has been instantiated
     if (!m_client)
         return;
 
-    Mat& img = *(Mat*)addrImg;
-    assert(img.empty());
+    cv::Mat& img = *(Mat*)addrImg;
+    cv::Mat& depth = *(Mat*)addrDepth;
+
     std::vector<ImageRequest> request = {
-            //png format
-            ImageRequest("0", ImageType::Scene, false, false),
-        };
+            ImageRequest("0", ImageType::Scene, false),
+            ImageRequest("1", ImageType::DepthPerspective, true, true),
+    };
 
     const std::vector<ImageResponse>& response = m_client -> simGetImages(request);
-    assert(response.size() > 0);
+    // assert(response.size() > 0);
     if(response.size() > 0) {
-        // Mat Left = Mat(response.at(0).height, response.at(0).width, ImreadModes::IMREAD_COLOR);
-        imdecode(response.at(0).image_data_uint8,  ImreadModes::IMREAD_COLOR, &img);
+        img = imdecode(response.at(0).image_data_uint8, ImreadModes::IMREAD_COLOR);
+        cv::Mat temp(response.at(1).height, response.at(1).width, CV_32FC1,(void*)response.at(1).image_data_float.data());
+        depth = temp;
     }
 }
 
