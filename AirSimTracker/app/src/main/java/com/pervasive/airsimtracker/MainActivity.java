@@ -54,10 +54,15 @@ public class MainActivity extends AppCompatActivity {
     //private Net opencvNet;
     //private CNNExtractorService cnnService;
     private DetectorActivity detector;
+    // Variable to store the the point in which we found the car
+    private Point actualPos;
+    // Variable to store the the point in which we found the car at the previous time
+    private Point prevPos;
 
     // Data
     public float accelerationValue = 0.3f;
     public float decelerationValue = 0.2f;
+
 
 
     // Function to retrieve data and send commands to the Airsim car
@@ -171,13 +176,16 @@ public class MainActivity extends AppCompatActivity {
 
                         // .. Image classification and car controls //
                         // This gives us the point in which we found the car
-                        Point pos = detector.processImage(MainActivity.this, bitmap);
-                        if (pos != null) {
-                            Log.i(TAG, String.format("Point in screen of the car: %d, %d", pos.x, pos.y));
-                            double distance = getDist(depthMat, pos);
+                        //Point pos = detector.processImage(MainActivity.this, bitmap);
+                        actualPos = detector.processImage(MainActivity.this, bitmap);
+                        if (actualPos != null) {
+                            Log.i(TAG, String.format("ACTUAL POS: %d, %d", actualPos.x, actualPos.y));
+                            Log.i(TAG, "Car DETECTED");
+                            Log.i(TAG, String.format("Point in screen of the car: %d, %d", actualPos.x, actualPos.y));
+                            double distance = getDist(depthMat, actualPos);
                             Log.i(TAG, String.format("Distance from the car in meters: %f", distance));
                             // Go towards the point in which the car should be
-                            float steeringAngle = (pos.x / (float)(w / 2)) - 1;
+                            float steeringAngle = (actualPos.x / (float)(w / 2)) - 1;
 
                             // Choose the right amount of throttle
                             if (distance < 4 || distance > 100)
@@ -189,9 +197,28 @@ public class MainActivity extends AppCompatActivity {
                                 else
                                     CarAccelerate(accelerationValue, steeringAngle);
                             }
-                            pos = null;
-                        } else // Can't find the car
+                            prevPos = actualPos;
+                            actualPos = null;
+                        } else if(prevPos == null) {
+                            Log.i(TAG, "Car not detected PREVPOS NULL");
                             CarBrake();
+                        } else {
+                            Log.i(TAG, "Car not detected PREVPOS OK");
+                            double distance = getDist(depthMat, prevPos);
+                            // Go towards the point in which the car should be
+                            float steeringAngle = (prevPos.x / (float)(w / 2)) - 1;
+
+                            // Choose the right amount of throttle
+                            if (distance < 4 || distance > 100)
+                                CarBrake();
+                            else {
+                                float carSpeed = GetCarSpeed();
+                                if ((distance / carSpeed) < 1)
+                                    CarDecelerate(decelerationValue, steeringAngle);
+                                else
+                                    CarAccelerate(accelerationValue, steeringAngle);
+                            }
+                        }
 
                         // Display the image
                         imageView.setImageBitmap(bitmap);

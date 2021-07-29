@@ -23,8 +23,8 @@ CarRpcLibClient * m_client;
 
 JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConnect(JNIEnv *env, jobject)
 {
-    m_client = new CarRpcLibClient("192.168.1.101");
-    // m_client = new CarRpcLibClient("192.168.1.89");
+    //m_client = new CarRpcLibClient("192.168.1.101");
+    m_client = new CarRpcLibClient("192.168.1.89");
     m_client->confirmConnection();
     m_client->enableApiControl(true, "Car1");
     bool isEnabled = m_client -> isApiControlEnabled();
