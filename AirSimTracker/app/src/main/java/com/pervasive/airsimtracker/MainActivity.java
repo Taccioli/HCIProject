@@ -50,10 +50,17 @@ public class MainActivity extends AppCompatActivity {
     private static final int w = 480, h = 360;  // Width and height of the images received, used to compute the distance between the cars
     private static ToggleButton connectButton;
     public Mat imageMat;
-    public Mat depthMat;
+    //public Mat depthMat;
+    private float[] imageDepth;
     //private Net opencvNet;
     //private CNNExtractorService cnnService;
     private DetectorActivity detector;
+    // Variable to store the point in which we found the car
+    private Point actualPos;
+    // Variable to store the point in which we found the car at the previous time
+    private Point prevPos;
+    // Variable to store the distance between the two cars
+    private double distance;
 
     // Data
     public float accelerationValue = 0.3f;
@@ -63,7 +70,8 @@ public class MainActivity extends AppCompatActivity {
     // Function to retrieve data and send commands to the Airsim car
     public native boolean CarConnect();
 
-    public native void GetImage(long imgAddr, long depthAddr);
+    //public native void GetImage(long imgAddr, long depthAddr);
+    public native float[] GetImage(long imgAddr);
 
     public native ReceivedImage GetImages();
 
@@ -106,19 +114,19 @@ public class MainActivity extends AppCompatActivity {
         //connectButton = (ToggleButton) findViewById(R.id.connectButton);
         bitmap = null;
         imageMat = new Mat();
-        depthMat = new Mat(h,w,CV_32FC1);
+        //depthMat = new Mat(h,w,CV_32FC1);
+        imageDepth = new float[]{};
         this.detector = new DetectorActivity();
         onConnect();
     }
 
     @Override
-    public void onResume(){
+    public void onResume() {
         super.onResume();
-        if (!OpenCVLoader.initDebug()){
-            Log.d(TAG, "Internal OpenCV library not found. Using penCV manager for initialization");
+        if (!OpenCVLoader.initDebug()) {
+            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV manager for initialization");
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
-        }
-        else {
+        } else {
             Log.d(TAG, "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
@@ -147,7 +155,7 @@ public class MainActivity extends AppCompatActivity {
                 options.inJustDecodeBounds = false;
                 options.inBitmap = bitmap;
                 options.inMutable = true;
-                bitmap = Bitmap.createBitmap(w,h, Bitmap.Config.ARGB_8888);
+                bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                 // Needed to show the stream of images
                 ImageView imageView = (ImageView) findViewById(R.id.cameraImage);
                 handler.postDelayed(new Runnable() {
@@ -160,7 +168,9 @@ public class MainActivity extends AppCompatActivity {
                         //float[] imageDepth = image.depthImage;
                         //float[] depth = GetDepth();
                         /// Test ///
-                        GetImage(imageMat.getNativeObjAddr(), depthMat.getNativeObjAddr());
+                        //GetImage(imageMat.getNativeObjAddr(), imageDepth.getNativeObjAddr());
+                        imageDepth = GetImage(imageMat.getNativeObjAddr());
+
                         final long stop = SystemClock.uptimeMillis();
                         Log.i(TAG, String.format("Acquisition time: %d", stop - startTime));
                         Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_BGR2RGBA);
@@ -171,13 +181,16 @@ public class MainActivity extends AppCompatActivity {
 
                         // .. Image classification and car controls //
                         // This gives us the point in which we found the car
-                        Point pos = detector.processImage(MainActivity.this, bitmap);
-                        if (pos != null) {
-                            Log.i(TAG, String.format("Point in screen of the car: %d, %d", pos.x, pos.y));
-                            double distance = getDist(depthMat, pos);
+                        //Point pos = detector.processImage(MainActivity.this, bitmap);
+                        actualPos = detector.processImage(MainActivity.this, bitmap);
+                        if (actualPos != null) {
+                            Log.i(TAG, String.format("ACTUAL POS: %d, %d", actualPos.x, actualPos.y));
+                            Log.i(TAG, "Car DETECTED");
+                            Log.i(TAG, String.format("Point in screen of the car: %d, %d", actualPos.x, actualPos.y));
+                            distance = getDist(imageDepth, actualPos);
                             Log.i(TAG, String.format("Distance from the car in meters: %f", distance));
                             // Go towards the point in which the car should be
-                            float steeringAngle = (pos.x / (float)(w / 2)) - 1;
+                            float steeringAngle = (actualPos.x / (float) (w / 2)) - 1;
 
                             // Choose the right amount of throttle
                             if (distance < 4 || distance > 100)
@@ -189,9 +202,28 @@ public class MainActivity extends AppCompatActivity {
                                 else
                                     CarAccelerate(accelerationValue, steeringAngle);
                             }
-                            pos = null;
-                        } else // Can't find the car
+                            prevPos = actualPos;
+                            actualPos = null;
+                        } else if (prevPos == null) {
+                            Log.i(TAG, "Car not detected PREVPOS NULL");
                             CarBrake();
+                        } else {
+                            Log.i(TAG, "Car not detected PREVPOS OK");
+                            //double distance = getDist(depthMat, prevPos);
+                            // Go towards the point in which the car should be
+                            float steeringAngle = (prevPos.x / (float) (w / 2)) - 1;
+
+                            // Choose the right amount of throttle
+                            if (distance < 4 || distance > 100)
+                                CarBrake();
+                            else {
+                                float carSpeed = GetCarSpeed();
+                                if ((distance / carSpeed) < 1)
+                                    CarDecelerate(decelerationValue, steeringAngle);
+                                else
+                                    CarAccelerate(accelerationValue, steeringAngle);
+                            }
+                        }
 
                         // Display the image
                         imageView.setImageBitmap(bitmap);
@@ -209,8 +241,8 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private double getDist(Mat imageDepth, Point pos) {
-        //return imageDepth[w*h-1-(pos.x+w*pos.y)];
-        return imageDepth.get((int)pos.x,(int)pos.y)[0];
+    private double getDist(float[] imageDepth, Point pos) {
+        return imageDepth[w * h - 1 - (pos.x + w * pos.y)];
+        //return imageDepth.get((int)pos.x,(int)pos.y)[0];
     }
 }

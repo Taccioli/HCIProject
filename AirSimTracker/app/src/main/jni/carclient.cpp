@@ -23,15 +23,15 @@ CarRpcLibClient * m_client;
 
 JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConnect(JNIEnv *env, jobject)
 {
-    m_client = new CarRpcLibClient("192.168.1.101");
-    // m_client = new CarRpcLibClient("192.168.1.89");
+    //m_client = new CarRpcLibClient("192.168.1.101");
+    m_client = new CarRpcLibClient("192.168.1.89");
     m_client->confirmConnection();
     m_client->enableApiControl(true, "Car1");
     bool isEnabled = m_client -> isApiControlEnabled();
     return isEnabled;
 }
 
-JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jlong addrImg, jlong addrDepth)
+/*JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jlong addrImg, jlong addrDepth)
 {
     // Check if a client has been instantiated
     if (!m_client)
@@ -52,6 +52,38 @@ JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JN
         cv::Mat temp(response.at(1).height, response.at(1).width, CV_32FC1,(void*)response.at(1).image_data_float.data());
         depth = temp;
     }
+}*/
+
+JNIEXPORT jfloatArray JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jlong addrImg)
+{
+    // Check if a client has been instantiated
+    if (!m_client)
+        return;
+
+    cv::Mat& img = *(Mat*)addrImg;
+
+    std::vector<ImageRequest> request = {
+            ImageRequest("0", ImageType::Scene, false),
+            ImageRequest("1", ImageType::DepthPerspective, true, true),
+    };
+
+    const std::vector<ImageResponse>& response = m_client -> simGetImages(request);
+    // assert(response.size() > 0);
+    if(response.size() > 0) {
+        img = imdecode(response.at(0).image_data_uint8, ImreadModes::IMREAD_COLOR);
+
+        const ImageResponse& image_info = response[1];
+        std::vector<float> image_float = image_info.image_data_float;
+        // Create a jbyteArray
+        jfloatArray image_jbfloat_array = env->NewFloatArray(image_float.size());
+        // Cast from uint8_t vector to uint8_t array
+        float* image_float_array = &image_float[0];
+        // Fill jbyteArray
+        env -> SetFloatArrayRegion(image_jbfloat_array, 0, image_float.size(), reinterpret_cast<jfloat *>(image_float_array));
+
+        return image_jbfloat_array;
+    }
+    return;
 }
 
 JNIEXPORT jobject JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImages(JNIEnv *env, jobject javaThis, jobject obj)
