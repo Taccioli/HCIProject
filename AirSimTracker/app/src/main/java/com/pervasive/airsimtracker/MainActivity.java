@@ -57,18 +57,29 @@ public class MainActivity extends AppCompatActivity {
     private DetectorActivity detector;
     // Variable to store the point in which we found the car
     private Point actualPos;
-    // Variable to store the point in which we found the car at the previous time
+    // Variable to store the point in which we last found the car
     private Point prevPos;
     // Variable to store the distance between the two cars
     private double distance;
-
+    // Variables to handle the behavior when no car is found
+    private int numFramesNoCar;
+    private int numFramesNoCarThresh = 9;
     // Data
     public float accelerationValue = 0.3f;
     public float decelerationValue = 0.2f;
-
+    // Flags to receive the images in different threads
+    private static final int REQUEST = 0;
+    private static final int WAIT = 1;
+    private static final int PROCESS = 2;
+    private boolean imageFlag;
+    private boolean depthFlag;
+    private int state = REQUEST;
+    private long startTime = 0;
 
     // Function to retrieve data and send commands to the Airsim car
     public native boolean CarConnect();
+
+    public native void GetScene(long imgAddr);
 
     //public native void GetImage(long imgAddr, long depthAddr);
     public native float[] GetImage(long imgAddr);
@@ -117,6 +128,7 @@ public class MainActivity extends AppCompatActivity {
         //depthMat = new Mat(h,w,CV_32FC1);
         imageDepth = new float[]{};
         this.detector = new DetectorActivity();
+        numFramesNoCar = 0;
         onConnect();
     }
 
@@ -141,7 +153,6 @@ public class MainActivity extends AppCompatActivity {
                 return CarConnect();
             }
 
-            @RequiresApi(api = Build.VERSION_CODES.O)
             @Override
             public void postExecute(Boolean result) {
                 Toast.makeText(getApplicationContext(),
@@ -150,6 +161,7 @@ public class MainActivity extends AppCompatActivity {
                 final Handler handler = new Handler();
                 // Defines the interval of time passing between each frame request
                 final int delay = 1; // ms
+
                 // Generating the object to control the Bitmap options
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = false;
@@ -158,77 +170,38 @@ public class MainActivity extends AppCompatActivity {
                 bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                 // Needed to show the stream of images
                 ImageView imageView = (ImageView) findViewById(R.id.cameraImage);
+
                 handler.postDelayed(new Runnable() {
                     public void run() {
-                        final long startTime = SystemClock.uptimeMillis(); // For debug purposes
-
-                        // Both depth and video images are received at the same time
-                        //ReceivedImage image = GetImages();
-                        //byte[] imageVals = image.videoImage;
-                        //float[] imageDepth = image.depthImage;
-                        //float[] depth = GetDepth();
-                        /// Test ///
-                        //GetImage(imageMat.getNativeObjAddr(), imageDepth.getNativeObjAddr());
-                        imageDepth = GetImage(imageMat.getNativeObjAddr());
-
-                        final long stop = SystemClock.uptimeMillis();
-                        Log.i(TAG, String.format("Acquisition time: %d", stop - startTime));
-                        Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_BGR2RGBA);
-                        Utils.matToBitmap(imageMat, bitmap);
-                        // Converting the received byte[] into Bitmap (to display and process the image)
-                        //int length = imageVals.length;
-                        //bitmap = BitmapFactory.decodeByteArray(imageVals, 0, length, options);
-
-                        // .. Image classification and car controls //
-                        // This gives us the point in which we found the car
-                        //Point pos = detector.processImage(MainActivity.this, bitmap);
-                        actualPos = detector.processImage(MainActivity.this, bitmap);
-                        if (actualPos != null) {
-                            Log.i(TAG, String.format("ACTUAL POS: %d, %d", actualPos.x, actualPos.y));
-                            Log.i(TAG, "Car DETECTED");
-                            Log.i(TAG, String.format("Point in screen of the car: %d, %d", actualPos.x, actualPos.y));
-                            distance = getDist(imageDepth, actualPos);
-                            Log.i(TAG, String.format("Distance from the car in meters: %f", distance));
-                            // Go towards the point in which the car should be
-                            float steeringAngle = (actualPos.x / (float) (w / 2)) - 1;
-
-                            // Choose the right amount of throttle
-                            if (distance < 4 || distance > 100)
-                                CarBrake();
-                            else {
-                                float carSpeed = GetCarSpeed();
-                                if ((distance / carSpeed) < 1)
-                                    CarDecelerate(decelerationValue, steeringAngle);
-                                else
-                                    CarAccelerate(accelerationValue, steeringAngle);
-                            }
-                            prevPos = actualPos;
-                            actualPos = null;
-                        } else if (prevPos == null) {
-                            Log.i(TAG, "Car not detected PREVPOS NULL");
-                            CarBrake();
-                        } else {
-                            Log.i(TAG, "Car not detected PREVPOS OK");
-                            //double distance = getDist(depthMat, prevPos);
-                            // Go towards the point in which the car should be
-                            float steeringAngle = (prevPos.x / (float) (w / 2)) - 1;
-
-                            // Choose the right amount of throttle
-                            if (distance < 4 || distance > 100)
-                                CarBrake();
-                            else {
-                                float carSpeed = GetCarSpeed();
-                                if ((distance / carSpeed) < 1)
-                                    CarDecelerate(decelerationValue, steeringAngle);
-                                else
-                                    CarAccelerate(accelerationValue, steeringAngle);
-                            }
+                        // Finite-state machine
+                        switch (state){
+                            case REQUEST:
+                                startTime = SystemClock.uptimeMillis(); // For debug purposes
+                                // Make the image request
+                                RequestImages();
+                                // Update the state
+                                state = WAIT;
+                                break;
+                            case WAIT:
+                                // Waiting for the images to be received
+                                if(depthFlag && imageFlag){
+                                    imageFlag = false;
+                                    depthFlag = false;
+                                    // Update the state
+                                    state = PROCESS;
+                                }
+                                break;
+                            case PROCESS:
+                                ProcessAndMove(imageMat, imageDepth);
+                                // Display the image
+                                imageView.setImageBitmap(bitmap);
+                                // Update the state
+                                state = REQUEST;
+                                // For debug purposes
+                                final long stopTime = SystemClock.uptimeMillis();
+                                Log.i(TAG, String.format("Total time: %d", stopTime - startTime));
+                                break;
                         }
-
-                        // Display the image
-                        imageView.setImageBitmap(bitmap);
-                        final long stopTime = SystemClock.uptimeMillis();
-                        Log.i(TAG, String.format("Total time: %d", stopTime - startTime));
                         handler.postDelayed(this, delay);
                     }
                 }, delay);
@@ -237,6 +210,110 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void preExecute() {
                 imageView = findViewById(R.id.cameraImage);
+            }
+        });
+    }
+
+    private void ProcessAndMove(Mat imageMat, float[] imageDepth) {
+        // Converting the received Mat image into Bitmap (to display and process the image)
+        Imgproc.cvtColor(imageMat, imageMat, Imgproc.COLOR_BGR2RGBA);
+        Utils.matToBitmap(imageMat, bitmap);
+
+        // Converting the received byte[] into Bitmap (to display and process the image)
+        //int length = imageVals.length;
+        //bitmap = BitmapFactory.decodeByteArray(imageVals, 0, length, options);
+
+        // .. Image classification and car controls //
+        // This gives us the point in which we found the car
+        //Point pos = detector.processImage(MainActivity.this, bitmap);
+        actualPos = detector.processImage(MainActivity.this, bitmap);
+        // If it recognizes the car inside the actual frame, move towards it
+        if (actualPos != null) {
+            Log.i(TAG, String.format("ACTUAL POS: %d, %d", actualPos.x, actualPos.y));
+            Log.i(TAG, "Car DETECTED");
+            Log.i(TAG, String.format("Point in screen of the car: %d, %d", actualPos.x, actualPos.y));
+            numFramesNoCar = 0;
+            distance = getDist(imageDepth, actualPos);
+            Log.i(TAG, String.format("Distance from the car in meters: %f", distance));
+            // Go towards the point in which the car should be
+            float steeringAngle = (actualPos.x / (float) (w / 2)) - 1;
+
+            // Choose the right amount of throttle
+            if (distance < 4)
+                CarBrake();
+            else {
+                /* float carSpeed = GetCarSpeed();
+                if ((distance / carSpeed) < 1)
+                    CarDecelerate(decelerationValue, steeringAngle);
+                else
+                    CarAccelerate(accelerationValue, steeringAngle); */
+                CarAccelerate(accelerationValue, steeringAngle);
+            }
+            prevPos = actualPos;
+            actualPos = null;
+            // If the agent has not seen the car in the recent frames
+        } else if (prevPos == null) {
+            Log.i(TAG, "Car not detected PREVPOS NULL");
+            CarBrake();
+            // If no car is seen inside the actual frame but it has been recognized in the recent frames
+        } else {
+            // If not too many frames have passed after the last sighting of the car, keep on moving
+            if(numFramesNoCar < numFramesNoCarThresh){
+                Log.i(TAG, "Car not detected PREVPOS OK");
+                // Go towards the point in which the car should be
+                float steeringAngle = (prevPos.x / (float) (w / 2)) - 1;
+                steeringAngle *= 1/(numFramesNoCar+1); // Adjusted for the movement
+                // Getting the distance between the car and the object in front of it
+                double distanceInFront = getDist(imageDepth, prevPos);
+                // If the direction in which the car is moving has an obstacle, stop
+                if (distanceInFront < 4)
+                    CarBrake();
+                else {
+                    CarAccelerate(accelerationValue, steeringAngle);
+                }
+                numFramesNoCar++;
+            }
+            // If too many frames have passed, stop and wait for the car to appear again
+            else {
+                CarBrake();
+            }
+        }
+    }
+
+    private void RequestImages() {
+        // Both depth and video images are received at the same time
+        //ReceivedImage image = GetImages();
+        //byte[] imageVals = image.videoImage;
+        //float[] imageDepth = image.depthImage;
+        //float[] depth = GetDepth();
+        /// Test ///
+        //GetImage(imageMat.getNativeObjAddr(), imageDepth.getNativeObjAddr());
+
+        /*
+        // Requesting the depth image
+        final Handler depthHandler = new Handler();
+        depthHandler.post(new Runnable() {
+            public void run() {
+                imageDepth = GetDepth();
+                depthFlag = true;
+            }
+        });
+        // Requesting the scene image
+        final Handler imageHandler = new Handler();
+        imageHandler.post(new Runnable() {
+            public void run() {
+                GetScene(imageMat.getNativeObjAddr());
+                imageFlag = true;
+            }
+        });
+        */
+        // KMS
+        final Handler imagesHandler = new Handler();
+        imagesHandler.post(new Runnable() {
+            public void run() {
+                imageDepth = GetImage(imageMat.getNativeObjAddr());
+                imageFlag = true;
+                depthFlag = true;
             }
         });
     }

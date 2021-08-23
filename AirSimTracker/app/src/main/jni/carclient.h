@@ -8,6 +8,7 @@ using namespace std;
 using namespace cv;
 extern "C" {
     JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConnect(JNIEnv *env, jobject);
+    JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetScene(JNIEnv *env, jobject javaThis, jlong addrImg, jlong addrDepth);
     //JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jlong addrImg, jlong addrDepth);
     JNIEXPORT jfloatArray JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jlong addrImg);
     JNIEXPORT jobject JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImages(JNIEnv *env, jobject javaThis, jobject obj);

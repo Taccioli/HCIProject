@@ -23,8 +23,8 @@ CarRpcLibClient * m_client;
 
 JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConnect(JNIEnv *env, jobject)
 {
-    //m_client = new CarRpcLibClient("192.168.1.101");
-    m_client = new CarRpcLibClient("192.168.1.89");
+    m_client = new CarRpcLibClient("192.168.1.102");
+    //m_client = new CarRpcLibClient("192.168.1.89");
     m_client->confirmConnection();
     m_client->enableApiControl(true, "Car1");
     bool isEnabled = m_client -> isApiControlEnabled();
@@ -53,6 +53,73 @@ JNIEXPORT jboolean JNICALL Java_com_pervasive_airsimtracker_MainActivity_CarConn
         depth = temp;
     }
 }*/
+
+JNIEXPORT void JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetScene(JNIEnv *env, jobject javaThis, jlong addrImg, jlong addrDepth)
+{
+    // Check if a client has been instantiated
+    if (!m_client)
+        return;
+
+    cv::Mat& img = *(Mat*)addrImg;
+    cv::Mat& depth = *(Mat*)addrDepth;
+
+    std::vector<ImageRequest> request = {
+            ImageRequest("0", ImageType::Scene, false),
+    };
+
+    const std::vector<ImageResponse>& response = m_client -> simGetImages(request);
+    // assert(response.size() > 0);
+    if(response.size() > 0) {
+        img = imdecode(response.at(0).image_data_uint8, ImreadModes::IMREAD_COLOR);
+    }
+}
+
+/*JNIEXPORT jobject JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImages(JNIEnv *env, jobject javaThis, jobject obj)
+{
+    // Check if a client has been instantiated
+    if (!m_client)
+        return;
+
+    jclass clazz = env->FindClass("com/pervasive/airsimtracker/ReceivedImage");
+    jmethodID constructor = env->GetMethodID(clazz, "<init>", "()V");
+    jobject recImg = env->NewObject(clazz, constructor);
+
+    std::vector<ImageRequest> request = {
+            ImageRequest("0", ImageType::Scene),
+            ImageRequest("1", ImageType::DepthPerspective, true),
+    };
+
+    const std::vector<ImageResponse>& response = m_client -> simGetImages(request);
+
+    if(response.size() > 0) {
+        const ImageResponse& image_info = response[0];
+
+        std::vector<uint8_t> image_uint8 = image_info.image_data_uint8;
+        // Create a jbyteArray
+        jbyteArray image_byte_array = env->NewByteArray(image_uint8.size());
+        // Cast from uint8_t vector to uint8_t array
+        uint8_t* image_uint8_array = &image_uint8[0];
+        // Fill jbyteArray
+        env -> SetByteArrayRegion(image_byte_array, 0, image_uint8.size(), reinterpret_cast<jbyte *>(image_uint8_array));
+
+        jfieldID param1Field = env->GetFieldID(clazz, "videoImage", "[B");
+        env->SetObjectField(recImg, param1Field, image_byte_array);
+
+        const ImageResponse& image_info1 = response[1];
+        std::vector<float> image_float = image_info1.image_data_float;
+        // Create a jfloatArray
+        jfloatArray image_jbfloat_array = env->NewFloatArray(image_float.size());
+        // Cast from uint8_t vector to uint8_t array
+        float* image_float_array = &image_float[0];
+        // Fill jbyteArray
+        env -> SetFloatArrayRegion(image_jbfloat_array, 0, image_float.size(), reinterpret_cast<jfloat *>(image_float_array));
+
+        jfieldID param2Field = env->GetFieldID(clazz, "depthImage", "[F");
+        env->SetObjectField(recImg, param2Field, image_jbfloat_array);
+    }
+    return recImg;
+}*/
+
 
 JNIEXPORT jfloatArray JNICALL Java_com_pervasive_airsimtracker_MainActivity_GetImage(JNIEnv *env, jobject javaThis, jlong addrImg)
 {
