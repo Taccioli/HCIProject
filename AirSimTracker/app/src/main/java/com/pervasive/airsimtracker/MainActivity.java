@@ -71,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST = 0;
     private static final int WAIT = 1;
     private static final int PROCESS = 2;
+    private static final int PAUSE = 3;
     private boolean imageFlag;
     private boolean depthFlag;
     private int state = REQUEST;
@@ -133,6 +134,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onPause(){
+        super.onPause();
+        CarBrake();
+        state = PAUSE;
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
         if (!OpenCVLoader.initDebug()) {
@@ -142,6 +150,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
+        state = REQUEST;
     }
 
     private void onConnect() {
@@ -200,6 +209,8 @@ public class MainActivity extends AppCompatActivity {
                                 // For debug purposes
                                 final long stopTime = SystemClock.uptimeMillis();
                                 Log.i(TAG, String.format("Total time: %d", stopTime - startTime));
+                                break;
+                            case PAUSE:
                                 break;
                         }
                         handler.postDelayed(this, delay);
