@@ -143,13 +143,68 @@ public class MainActivity extends AppCompatActivity {
         imageDepth = new float[]{};
         this.detector = new DetectorActivity();
         numFramesNoCar = 0;
-        onConnect();
+    }
+
+    public void CarControl(){
+        // Initial page gone and camera image visible
+        appNameTxt.setVisibility(View.GONE);
+        loadingTxt.setVisibility(View.GONE);
+        loadingGif.setVisibility(View.GONE);
+        cameraImage.setVisibility(View.VISIBLE);
+
+
+        final Handler handler = new Handler();
+        // Defines the interval of time passing between each frame request
+        final int delay = 1; // ms
+
+        // Generating the object to control the Bitmap options
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = false;
+        options.inBitmap = bitmap;
+        options.inMutable = true;
+        bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+
+        handler.postDelayed(new Runnable() {
+            public void run() {
+                // Finite-state machine
+                switch (state){
+                    case REQUEST:
+                        startTime = SystemClock.uptimeMillis(); // For debug purposes
+                        // Make the image request
+                        RequestImages();
+                        // Update the state
+                        state = WAIT;
+                        break;
+                    case WAIT:
+                        // Waiting for the images to be received
+                        if(depthFlag && imageFlag){
+                            imageFlag = false;
+                            depthFlag = false;
+                            // Update the state
+                            state = PROCESS;
+                        }
+                        break;
+                    case PROCESS:
+                        ProcessAndMove(imageMat, imageDepth);
+                        // Display the image
+                        cameraImage.setImageBitmap(bitmap);
+                        // Update the state
+                        state = REQUEST;
+                        // For debug purposes
+                        final long stopTime = SystemClock.uptimeMillis();
+                        Log.i(TAG, String.format("Total time: %d", stopTime - startTime));
+                        break;
+                }
+                handler.postDelayed(this, delay);
+            }
+        }, delay);
     }
 
     @Override
     public void onPause(){
         super.onPause();
-        CarBrake();
+        final Handler brakeHandler = new Handler();
+        brakeHandler.post(new Runnable() { public void run() { CarBrake(); }});
         state = PAUSE;
     }
 
@@ -164,9 +219,10 @@ public class MainActivity extends AppCompatActivity {
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
         state = REQUEST;
+        Connect();
     }
 
-    private void onConnect() {
+    private void Connect() {
         TaskRunner runner = new TaskRunner();
         //if(connectButton.isChecked()){
         runner.executeAsync(new CustomCallable<Boolean>() {
@@ -177,63 +233,12 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void postExecute(Boolean result) {
-                Toast.makeText(getApplicationContext(),
-                        "connection result " + result, Toast.LENGTH_LONG).show();
-
-                if(result){
-                    // Initial page gone and camera image visible
-                    appNameTxt.setVisibility(View.GONE);
-                    loadingTxt.setVisibility(View.GONE);
-                    loadingGif.setVisibility(View.GONE);
-                    cameraImage.setVisibility(View.VISIBLE);
-
-
-                    final Handler handler = new Handler();
-                    // Defines the interval of time passing between each frame request
-                    final int delay = 1; // ms
-
-                    // Generating the object to control the Bitmap options
-                    BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inJustDecodeBounds = false;
-                    options.inBitmap = bitmap;
-                    options.inMutable = true;
-                    bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-
-                    handler.postDelayed(new Runnable() {
-                        public void run() {
-                            // Finite-state machine
-                            switch (state){
-                                case REQUEST:
-                                    startTime = SystemClock.uptimeMillis(); // For debug purposes
-                                    // Make the image request
-                                    RequestImages();
-                                    // Update the state
-                                    state = WAIT;
-                                    break;
-                                case WAIT:
-                                    // Waiting for the images to be received
-                                    if(depthFlag && imageFlag){
-                                        imageFlag = false;
-                                        depthFlag = false;
-                                        // Update the state
-                                        state = PROCESS;
-                                    }
-                                    break;
-                                case PROCESS:
-                                    ProcessAndMove(imageMat, imageDepth);
-                                    // Display the image
-                                    cameraImage.setImageBitmap(bitmap);
-                                    // Update the state
-                                    state = REQUEST;
-                                    // For debug purposes
-                                    final long stopTime = SystemClock.uptimeMillis();
-                                    Log.i(TAG, String.format("Total time: %d", stopTime - startTime));
-                                    break;
-                            }
-                            handler.postDelayed(this, delay);
-                        }
-                    }, delay);
-                }
+                if(!result)
+                    // If the connection failed, try again
+                    Connect();
+                else
+                    // If not, launch the car controls
+                    CarControl();
             }
 
             @Override

@@ -9,9 +9,9 @@
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
-            <option value="$PROJECT_DIR$/../../../../../Development/OpenCV-android-sdk/sdk" />
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
+            <option value="E:/Android OpenCV/opencv-4.5.2-android-sdk/OpenCV-android-sdk/sdk" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />
