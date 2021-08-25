@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">AirSimTracker</string>
+    <string name="airsim_tracker">AirSim Tracker</string>
+    <string name="connecting">Connecting with AirSim</string>
+    <string name="image_description">Camera image</string>
 </resources>

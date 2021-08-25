@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
@@ -38,6 +39,8 @@ import org.opencv.core.Scalar;
 import org.opencv.dnn.Net;
 import org.opencv.imgproc.Imgproc;
 import org.tensorflow.lite.schema.Tensor;
+
+import pl.droidsonroids.gif.GifImageView;
 
 import static org.opencv.core.CvType.*;
 
@@ -75,6 +78,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean depthFlag;
     private int state = REQUEST;
     private long startTime = 0;
+    // Initial page views
+    private TextView appNameTxt;
+    private TextView loadingTxt;
+    private GifImageView loadingGif;
+    private ImageView cameraImage;
 
     // Function to retrieve data and send commands to the Airsim car
     public native boolean CarConnect();
@@ -122,6 +130,11 @@ public class MainActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
 
+        appNameTxt = (TextView) findViewById(R.id.app_name);
+        loadingTxt = (TextView) findViewById(R.id.connecting);
+        loadingGif = (GifImageView) findViewById(R.id.loading);
+        cameraImage = (ImageView) findViewById(R.id.camera_image);
+
         //connectButton = (ToggleButton) findViewById(R.id.connectButton);
         bitmap = null;
         imageMat = new Mat();
@@ -158,58 +171,64 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext(),
                         "connection result " + result, Toast.LENGTH_LONG).show();
 
-                final Handler handler = new Handler();
-                // Defines the interval of time passing between each frame request
-                final int delay = 1; // ms
+                if(result){
+                    // Initial page gone and camera image visible
+                    appNameTxt.setVisibility(View.GONE);
+                    loadingTxt.setVisibility(View.GONE);
+                    loadingGif.setVisibility(View.GONE);
+                    cameraImage.setVisibility(View.VISIBLE);
 
-                // Generating the object to control the Bitmap options
-                BitmapFactory.Options options = new BitmapFactory.Options();
-                options.inJustDecodeBounds = false;
-                options.inBitmap = bitmap;
-                options.inMutable = true;
-                bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                // Needed to show the stream of images
-                ImageView imageView = (ImageView) findViewById(R.id.cameraImage);
 
-                handler.postDelayed(new Runnable() {
-                    public void run() {
-                        // Finite-state machine
-                        switch (state){
-                            case REQUEST:
-                                startTime = SystemClock.uptimeMillis(); // For debug purposes
-                                // Make the image request
-                                RequestImages();
-                                // Update the state
-                                state = WAIT;
-                                break;
-                            case WAIT:
-                                // Waiting for the images to be received
-                                if(depthFlag && imageFlag){
-                                    imageFlag = false;
-                                    depthFlag = false;
+                    final Handler handler = new Handler();
+                    // Defines the interval of time passing between each frame request
+                    final int delay = 1; // ms
+
+                    // Generating the object to control the Bitmap options
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inJustDecodeBounds = false;
+                    options.inBitmap = bitmap;
+                    options.inMutable = true;
+                    bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+
+                    handler.postDelayed(new Runnable() {
+                        public void run() {
+                            // Finite-state machine
+                            switch (state){
+                                case REQUEST:
+                                    startTime = SystemClock.uptimeMillis(); // For debug purposes
+                                    // Make the image request
+                                    RequestImages();
                                     // Update the state
-                                    state = PROCESS;
-                                }
-                                break;
-                            case PROCESS:
-                                ProcessAndMove(imageMat, imageDepth);
-                                // Display the image
-                                imageView.setImageBitmap(bitmap);
-                                // Update the state
-                                state = REQUEST;
-                                // For debug purposes
-                                final long stopTime = SystemClock.uptimeMillis();
-                                Log.i(TAG, String.format("Total time: %d", stopTime - startTime));
-                                break;
+                                    state = WAIT;
+                                    break;
+                                case WAIT:
+                                    // Waiting for the images to be received
+                                    if(depthFlag && imageFlag){
+                                        imageFlag = false;
+                                        depthFlag = false;
+                                        // Update the state
+                                        state = PROCESS;
+                                    }
+                                    break;
+                                case PROCESS:
+                                    ProcessAndMove(imageMat, imageDepth);
+                                    // Display the image
+                                    cameraImage.setImageBitmap(bitmap);
+                                    // Update the state
+                                    state = REQUEST;
+                                    // For debug purposes
+                                    final long stopTime = SystemClock.uptimeMillis();
+                                    Log.i(TAG, String.format("Total time: %d", stopTime - startTime));
+                                    break;
+                            }
+                            handler.postDelayed(this, delay);
                         }
-                        handler.postDelayed(this, delay);
-                    }
-                }, delay);
+                    }, delay);
+                }
             }
 
             @Override
             public void preExecute() {
-                imageView = findViewById(R.id.cameraImage);
             }
         });
     }
