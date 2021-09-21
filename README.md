@@ -1,6 +1,6 @@
 # AirsimTracker
 ## Introduzione all'applicazione
-AirsimTracker è una applicazione Android che permette di controllare autonomamente un veicolo all'interno dell'ambiente Airsim, con l'obiettivo di inseguire un'altra automobile che può essere pilotata direttamente all'interno di Airsim o da altri dispositivi.
+AirsimTracker è una applicazione Android che permette di controllare autonomamente un veicolo all'interno dell'ambiente Airsim, con l'obiettivo di inseguire un'altra automobile che può essere pilotata manualmente o da altri dispositivi.
 
 ## Funzionamento
 All'avvio, l'applicazione si collega autonomamente a una istanza di Airsim aperta, prendendo possesso di uno dei veicoli presenti nell'ambiente.
