@@ -228,14 +228,18 @@ public class MainActivity extends AppCompatActivity {
         runner.executeAsync(new CustomCallable<Boolean>() {
             @Override
             public Boolean call() throws Exception {
+                //Log.i(TAG, "CONNECTION REQUEST");
                 return CarConnect();
+                //return false;
             }
 
             @Override
             public void postExecute(Boolean result) {
-                if(!result)
+                if(!result) {
                     // If the connection failed, try again
+                    Log.i(TAG, "CONNECTION REQUEST");
                     Connect();
+                }
                 else
                     // If not, launch the car controls
                     CarControl();
